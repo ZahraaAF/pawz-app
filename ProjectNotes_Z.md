@@ -2,7 +2,7 @@
 
 Living handoff doc: what's been built, why, and what's next. Updated at the end of each phase. For exact technical steps of the phase we're currently mid-way through, see the plan at `~/.claude/plans/hi-claude-inspect-the-wise-taco.md` — this file is the narrative companion, not a replacement.
 
-Last updated: end of Phase C, committed. Phase D (pet CRUD) has files on disk but is **not committed yet** — untested, held back deliberately (see "Next up" at the bottom).
+Last updated: end of Phase D. Phase D is built, QA'd, and confirmed working end-to-end, but **not committed yet** (see "Next up" at the bottom).
 
 ---
 
@@ -92,6 +92,27 @@ Fixed by: (1) `auth/callback/route.ts` now signs out before redirecting to `/log
 
 ---
 
-## Next up — Phase D: Pet CRUD
+## Phase D — Pet CRUD
 
-Files already exist on disk (`web/supabase/migrations/0001_pets_and_weights.sql`, `web/src/lib/pets/*`) but are **not committed yet** — this slice hasn't been tested end-to-end, so it's deliberately held back rather than bundled into the Phase B/C commit.
+**What:**
+- `web/supabase/migrations/0001_pets_and_weights.sql` — `pets` + `pet_weights` tables, a `security_invoker` `pet_current_weight` view (latest weight per pet, ordered by `logged_on`/`created_at` so backfilled entries sort correctly, not insertion order), RLS on both tables scoped to `owner_id = auth.uid()`. A check constraint blocks a pet having both a `dob` and an `estimated_age_label` at the database level, not just in the form.
+- `web/src/lib/pets/{types,queries,actions,color,format}.ts` — Zod-validated CRUD (`createPet`, `updatePet`, `archivePet`, `addWeightEntry`), an `emptyToNull` helper so blank form fields become real `NULL` (needed for "Unknown" styling to key off `value == null`), a deterministic per-pet accent color hash (`getPetAccentColor`) from a blue/purple/teal palette chosen to avoid clashing with the amber/brick/sage status-pill colors, and age/weight/unknown-field formatting helpers.
+- Real dashboard (pet tiles + honest "Nothing due yet"/"No activity logged yet" empty states — reminders aren't built yet, so nothing is fabricated), `/pets/new`, `/pets/[petId]` (avatar-chip `PetSwitcher`, `ViewToggle` for Overview/Timeline/Actions, `FieldGrid` with Unknown-styling, `WeightPanel` with add-entry form + history), `/pets/[petId]/edit` (shared `PetForm` + Archive), `/care-card` placeholder so the topbar's Care Card tab has a real destination. Timeline/Actions render as "lands in a later update" stubs, preserving the mockup's shape without building symptom logs/documents/reports yet.
+
+**Verified as actually working (not just "files exist"):**
+- `tsc --noEmit`, `pnpm lint`, and the existing Vitest suite all clean throughout.
+- Migration applied to the live Supabase project via `npx supabase db push`; confirmed live by querying `pets`/`pet_weights` with the anon key unauthenticated — empty result, no error, proving the tables exist and RLS is actively filtering rather than erroring.
+- Went further than a browser click-through: created a throwaway Supabase test account, force-confirmed its email via direct `supabase db query --linked` (bypassing the need to click a real confirmation email), captured a real `@supabase/ssr` session cookie for it, and drove actual POST requests through every Server Action (create pet, log a weight, edit a pet, archive a pet) plus every page (dashboard, pet profile, edit, Care Card) against a throwaway `pnpm dev` instance on a spare port — all succeeded cleanly with real and empty data alike. Test account, its data, and the debug scripts were all deleted afterward.
+- Zee then manually walked the full checklist herself in her own browser (clean-slate dog with full DOB, rescue cat with estimated age + blank fields showing "Unknown" styling correctly, backfilled out-of-order weight entries, edit, archive, pet switching, Care Card/Timeline/Actions placeholders) — all passed.
+
+**Gotcha hit along the way:** Zee hit a plain-text "Internal Server Error" mid-session that didn't reproduce in any of the direct testing above (every Server Action and page loaded fine under a real session). Best explanation: her `pnpm dev` instance had been running continuously while a dozen-plus new files landed underneath it, and Turbopack's dev server got into a bad incremental-compile state. A plain restart (`pnpm dev` again) cleared it — worth remembering as a first troubleshooting step if this recurs after a large batch of file changes lands while the dev server is already running.
+
+**Not built this slice (deliberately deferred):** the automated two-user RLS check (`web/scripts/verify-rls.mjs`) flagged in the original plan — the manual anon-key check plus the throwaway-account exercise above gave enough confidence for now; can revisit before this matters more (e.g. before real users' data is on the line).
+
+**Status:** Complete, tested, not yet committed.
+
+---
+
+## Next up — Phase E: Reminders
+
+Per SPEC's stated build order (auth → pet CRUD → reminders → symptom log/report → documents → Care Card), reminders (vaccines, meds, grooming, flea, worming, vet appts — Supabase Edge Functions on a cron schedule + Resend for email) are next. Not started or planned in detail yet.
