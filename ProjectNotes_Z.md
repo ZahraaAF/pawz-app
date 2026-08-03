@@ -2,7 +2,7 @@
 
 Living handoff doc: what's been built, why, and what's next. Updated at the end of each phase. For exact technical steps of the phase we're currently mid-way through, see the plan at `~/.claude/plans/hi-claude-inspect-the-wise-taco.md` — this file is the narrative companion, not a replacement.
 
-Last updated: 2026-08-02, end of Phase A.
+Last updated: end of Phase C, committed. Phase D (pet CRUD) has files on disk but is **not committed yet** — untested, held back deliberately (see "Next up" at the bottom).
 
 ---
 
@@ -62,6 +62,36 @@ Last updated: 2026-08-02, end of Phase A.
 
 ---
 
-## Next up — Phase B: Auth
+## Phase B — Auth
 
-Not started yet. Per the plan: `web/src/proxy.ts` (replaces `middleware.ts` — renamed in this Next.js version) for session refresh + route protection, a `getUser()` DAL helper that every Server Action independently calls (the proxy is a fast-path UX layer, not the sole guard), login/signup/forgot-password/reset-password pages under `(auth)/`, the `/auth/callback` route for email confirmation links, and logout as a plain form action. Ends with `page.tsx` becoming an auth-aware redirect to `/dashboard` or `/login`.
+**What:**
+- `web/src/proxy.ts` (replaces `middleware.ts` — renamed in this Next.js version) — Supabase-backed session refresh + route protection. Redirects logged-out users away from `/dashboard`; redirects already-logged-in users away from `/login`/`/signup`/`/forgot-password`. `/reset-password` is deliberately excluded from that logged-in redirect, since it's reached via a recovery-link session, not a normal login.
+- `web/src/lib/auth/dal.ts` — `getUser()`/`requireUser()` helper, called independently by every Server Action and data-fetching Server Component rather than trusting the proxy alone (a proxy matcher misconfiguration can silently stop covering a route).
+- `web/src/app/(auth)/{login,signup,forgot-password,reset-password}/` — pages + colocated Server Actions (`signInWithPassword`, `signUp`, `resetPasswordForEmail`, `updateUser`).
+- `web/src/app/auth/callback/route.ts` — handles Supabase's email confirmation / password-reset redirect links via `exchangeCodeForSession`.
+- `web/src/lib/auth/actions.ts` — `signOut` as a plain form action.
+- `web/src/app/page.tsx` — replaced the create-next-app boilerplate with an auth-aware redirect (`getUser()` → `/dashboard` or `/login`).
+
+**Gotcha hit + fixed:** manual QA found that clicking a password-reset email link a *second* time (after it had already been used once) landed straight on the dashboard, fully logged in, instead of showing an expired-link error. Root cause: the first click's `exchangeCodeForSession` establishes a completely ordinary, persistent session — not a scoped "you may only reset your password" token. So on the second click, the recovery *code* correctly failed to re-exchange, but the still-valid session cookie left over from the first click made `proxy.ts`'s "already logged in → bounce off `/login`" rule silently swallow the intended error and redirect straight to `/dashboard` instead. The same root cause meant a *successful* reset also left the user in a standing session without the new password ever actually being used.
+Fixed by: (1) `auth/callback/route.ts` now signs out before redirecting to `/login?error=auth-callback-failed` on a failed code exchange, so a stale/reused link can't ride on a leftover session; (2) `reset-password`'s `updateUser` action now signs out after a successful password change and redirects to `/login?message=password-updated`, so completing a reset requires actually logging in with the new password.
+
+**Verified as actually working:**
+- Added Vitest (`pnpm test`, first automated tests in this project) covering both fixes directly, plus a regression test locking in `proxy.ts`'s existing redirect rules — the exact interaction between two independently-reasonable rules is what caused the bug, so it's now guarded against regressing silently again.
+- `tsc --noEmit` and `pnpm lint` both clean.
+- Manually walked signup → email confirm → callback → dashboard, logout/login, and the full password-reset round-trip (including the reused-link case) in a real browser.
+
+**Status:** Complete.
+
+---
+
+## Phase C — App shell
+
+**What:** `web/src/components/Topbar.tsx` (replaces the mock-data `TopNav.tsx` from Phase 1) + `web/src/app/(app)/layout.tsx`, ported from the mockup's `.topbar`/`.nav-tab` styles. Wraps authenticated routes with persistent top navigation and a `signOut` form action.
+
+**Status:** Complete.
+
+---
+
+## Next up — Phase D: Pet CRUD
+
+Files already exist on disk (`web/supabase/migrations/0001_pets_and_weights.sql`, `web/src/lib/pets/*`) but are **not committed yet** — this slice hasn't been tested end-to-end, so it's deliberately held back rather than bundled into the Phase B/C commit.

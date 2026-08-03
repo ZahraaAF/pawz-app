@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import TopNav from "@/components/TopNav";
 
 export const metadata: Metadata = {
   title: "Pawz",
@@ -14,10 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
-        <TopNav />
-        <main>{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
