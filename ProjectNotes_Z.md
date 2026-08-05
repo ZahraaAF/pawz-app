@@ -2,7 +2,7 @@
 
 Living handoff doc: what's been built, why, and what's next. Updated at the end of each phase. For exact technical steps of the phase we're currently mid-way through, see the plan at `~/.claude/plans/hi-claude-inspect-the-wise-taco.md` — this file is the narrative companion, not a replacement.
 
-Last updated: mid-Phase E1. Phase D is committed. Phase E1 (in-app reminders) code is fully written and scripted-QA'd, but **not committed yet** and not yet walked through by Zee in her own browser (see "Phase E1" below).
+Last updated: end of Phase E2. Phases D and E1 are committed and pushed. Phase E2 (reminder email digest) is built, deployed, and verified end-to-end against the live project, but **not committed yet** (see "Phase E2" below).
 
 ---
 
@@ -131,8 +131,26 @@ Fixed by: (1) `auth/callback/route.ts` now signs out before redirecting to `/log
 
 ---
 
+## Phase E2 — Reminder email digest
+
+**What:** The other half of FR#17 ("Email reminder N days before due, default 3"). Per plan `~/.claude/plans/jaunty-cuddling-flute.md`: one daily digest email per owner (not one email per reminder), listing everything due in the next 3 days across all their pets, sent unattended by a Supabase Edge Function on a `pg_cron` schedule.
+
+- `web/supabase/migrations/0003_reminder_notifications.sql` — adds `reminder_schedules.last_notified_for_due_on` (nullable date, compared against the *live* `next_due_on` rather than a boolean flag, so a reminder re-arms itself automatically whenever its due date changes — a recurring mark-done advance, or a future edit feature — with zero extra reset code); a `mark_reminders_notified(uuid[])` SQL function (PostgREST can't set a column to another column of the same row, only a literal); enables `pg_cron`/`pg_net`; schedules `send-reminder-digest-daily` at 12:00 UTC via `net.http_post`, authenticated with a bearer secret pulled from Supabase Vault by name (`cron_digest_invoke_secret`) — never committed as a literal.
+- `web/supabase/functions/send-reminder-digest/index.ts` — Deno Edge Function. Auth-gates on a bespoke `CRON_INVOKE_SECRET` header check (not Supabase's default JWT verification, which would accept any logged-in user's session token — see `config.toml`'s `[functions.send-reminder-digest]` `verify_jwt = false`), queries reminders due within a 3-day window (a range, not strict equality, so one missed cron run can't permanently skip a reminder), groups by pet owner, resolves each owner's email via `auth.admin.getUserById` (no `profiles` table exists), sends one plain-text digest per owner via Resend, and marks that owner's reminders notified immediately after their own successful send (not batched) so a mid-run crash can't affect owners already processed.
+- `web/tsconfig.json` / `web/eslint.config.mjs` — both now exclude `supabase/functions/**`, since that's Deno code (`Deno.serve`, `npm:` specifiers) that would otherwise break `tsc`/`pnpm lint`.
+
+**Verified as actually working (not just "files exist"):** migration applied live (`supabase migration list` shows 0003 local=remote); `cron.job` confirmed scheduled and active; function deployed and manually invoked directly (bypassing the cron wait) against real data — a throwaway pre-confirmed test account (email matching Zee's actual Resend-registered address, since Resend's sandbox mode only delivers to the exact account email — notably **not** the `zahraalearns@gmail.com` Zee logs into the app with) received a real digest email end-to-end; confirmed idempotent on immediate re-invocation (dedup column correctly excludes an already-notified reminder, no duplicate send); confirmed 401 on a missing/wrong secret with no DB side effects; confirmed a reminder re-arms and sends a fresh email when its due date changes after already being notified. All throwaway test data (account, pet, reminder) and debug scripts were deleted afterward.
+
+**Known limitation, not a bug:** without a verified custom domain in Resend (blocked on app naming/domain still being unresolved), real delivery is restricted to Zee's own Resend-account email. Fine while she's the only real user — verifying a domain to unlock delivery to other users' real addresses is an explicit, deliberate follow-up whenever that's needed, not scoped into E2.
+
+**Not done yet:** letting the real `cron.schedule` run unattended overnight to confirm it fires on its own (everything above was manual/direct invocation, which proves the function itself works correctly — the schedule mechanism is the one piece that hasn't had a real unattended run yet); committing this phase.
+
+**Also noticed, unrelated to this phase:** `SPEC.md` has an uncommitted "9. Nice-to-Have Features" section (a PWA-manifest idea) sitting in the working tree from some earlier session — left alone/out of the Phase E2 commit since it's unrelated; worth Zee's attention whenever convenient.
+
+---
+
 ## Next up
 
-1. Zee walks Phase E1 by hand in her own browser (create/cancel/mark-done a reminder, log a standalone event, check dashboard + pet-profile Reminders/Timeline against the mockup's spacing/tone).
-2. Commit Phase E1.
-3. Phase E2 — the email-digest half (Resend account signup, Supabase Edge Function on a cron schedule) — not started or planned in detail yet.
+1. Let the Phase E2 cron job run unattended overnight; next morning, confirm an email arrived with no manual trigger and `last_notified_for_due_on` moved on its own.
+2. Commit Phase E2 (and decide separately what to do with the stray uncommitted `SPEC.md` PWA section).
+3. Whatever's next per SPEC's build order after reminders: symptom log/vet report, then documents, then Care Card.

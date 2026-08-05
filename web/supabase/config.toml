@@ -385,6 +385,13 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+[functions.send-reminder-digest]
+# Invoked only by our own pg_cron job with a bespoke shared secret checked
+# inside the function itself (see index.ts) - the platform's default JWT
+# check would otherwise accept any valid Supabase JWT, including an
+# ordinary logged-in user's session token.
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
