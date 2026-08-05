@@ -256,6 +256,16 @@ table.doc-table tr:first-child td { border-top: none; }
 .weight-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-top: 1px solid var(--line-soft); font-size: 13px; }
 .weight-row:first-child { border-top: none; }
 
+/* ---- Modal dialog (native <dialog>) ---- */
+dialog.modal-dialog { border: none; border-radius: var(--radius-l); padding: 0; background: transparent; max-width: 480px; width: calc(100% - 32px); }
+dialog.modal-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.modal-dialog .pet-form-card { margin: 0; }
+
+/* ---- Reminder row actions ---- */
+.r-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.r-action-cancel { font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 999px; border: none; background: none; color: var(--ink-faint); cursor: pointer; }
+.r-action-cancel:hover { color: var(--brick); text-decoration: underline; }
+
 /* ---- Timeline / Actions stubs (built in a later slice) ---- */
 .stub-panel { padding: 26px 16px; text-align: center; color: var(--ink-faint); font-size: 13px; }
 

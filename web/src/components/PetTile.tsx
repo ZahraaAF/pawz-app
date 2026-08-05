@@ -1,9 +1,25 @@
 import Link from "next/link";
 import { petAccentStyle } from "@/lib/pets/color";
 import { formatAge, formatWeight } from "@/lib/pets/format";
+import type { ReminderCounts } from "@/lib/reminders/format";
+import { petStatusPill } from "@/lib/reminders/format";
 import type { PetWithCurrentWeight } from "@/lib/pets/types";
 
-export default function PetTile({ pet }: { pet: PetWithCurrentWeight }) {
+export default function PetTile({
+  pet,
+  reminderCounts,
+}: {
+  pet: PetWithCurrentWeight;
+  reminderCounts?: ReminderCounts;
+}) {
+  const status = petStatusPill(reminderCounts);
+  const pillClass =
+    status.tone === "overdue"
+      ? "pill-overdue"
+      : status.tone === "ok"
+        ? "pill-ok"
+        : "pill-unknown";
+
   return (
     <Link
       href={`/pets/${pet.id}`}
@@ -24,7 +40,7 @@ export default function PetTile({ pet }: { pet: PetWithCurrentWeight }) {
       <span className="tile-weight mono">
         {pet.current_weight ? formatWeight(pet.current_weight) : "No weight logged"}
       </span>
-      <span className="pill pill-unknown">No reminders yet</span>
+      <span className={`pill ${pillClass}`}>{status.label}</span>
     </Link>
   );
 }

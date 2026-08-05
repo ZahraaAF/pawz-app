@@ -2,7 +2,7 @@
 
 Living handoff doc: what's been built, why, and what's next. Updated at the end of each phase. For exact technical steps of the phase we're currently mid-way through, see the plan at `~/.claude/plans/hi-claude-inspect-the-wise-taco.md` — this file is the narrative companion, not a replacement.
 
-Last updated: end of Phase D. Phase D is built, QA'd, and confirmed working end-to-end, but **not committed yet** (see "Next up" at the bottom).
+Last updated: mid-Phase E1. Phase D is committed. Phase E1 (in-app reminders) code is fully written and scripted-QA'd, but **not committed yet** and not yet walked through by Zee in her own browser (see "Phase E1" below).
 
 ---
 
@@ -109,10 +109,30 @@ Fixed by: (1) `auth/callback/route.ts` now signs out before redirecting to `/log
 
 **Not built this slice (deliberately deferred):** the automated two-user RLS check (`web/scripts/verify-rls.mjs`) flagged in the original plan — the manual anon-key check plus the throwaway-account exercise above gave enough confidence for now; can revisit before this matters more (e.g. before real users' data is on the line).
 
-**Status:** Complete, tested, not yet committed.
+**Status:** Complete, committed (`404f4bd`).
 
 ---
 
-## Next up — Phase E: Reminders
+## Phase E1 — In-app reminders
 
-Per SPEC's stated build order (auth → pet CRUD → reminders → symptom log/report → documents → Care Card), reminders (vaccines, meds, grooming, flea, worming, vet appts — Supabase Edge Functions on a cron schedule + Resend for email) are next. Not started or planned in detail yet.
+**What:** Per SPEC's stated build order (auth → pet CRUD → reminders → symptom log/report → documents → Care Card), and per the plan at `~/.claude/plans/floating-foraging-diffie.md`: the in-app half of reminders (creating/logging/marking-done, real Overdue/Upcoming/Recently-logged sections). The email-digest half (Supabase Edge Function + Resend + cron) is deliberately deferred to a separate "Phase E2" plan — needs its own Resend account signup.
+
+- `web/supabase/migrations/0002_reminders.sql` — `reminder_schedules` (forward-looking, `type` as text+check not enum since categories will churn) + `care_events` (immutable log, `schedule_id` nullable so standalone past events can be logged without any reminder), RLS via the same pets-ownership join pattern as `pet_weights`.
+- `web/src/lib/reminders/{types,format,queries,actions}.ts` — mirrors `lib/pets/` exactly. Three distinct actions (`createReminder`, `logCareEvent`, `markReminderDone`) so no field ever means both "happened" and "will happen"; `markReminderDone` anchors the next occurrence to the actual completion date (today + interval), not the original due date. `cancelReminder` deactivates without logging. Cross-pet dashboard queries use `pets!inner(...).eq("pets.archived", false)` specifically to avoid leaking archived pets' reminders.
+- New components: `ReminderForm`, `ReminderRow`, `ReminderPanel`, `LogEventForm`, `LogEventModal`, `Timeline` (replaces `TimelineStub`), `CollapsibleSection` (used to tuck Reminders into the pet profile's Overview tab). Dashboard and `PetTile` wired to show real Overdue/Upcoming/pill counts instead of the old placeholder copy.
+- Dead code removed: old `lib/pets.ts` mock data, `PetTiles`, `ReminderList`, `RecentEventList`, `TimelineStub`.
+
+**Verified as actually working:**
+- `tsc --noEmit`, `pnpm lint`, `pnpm test` (24 tests) all clean.
+- Migration `0002` confirmed live via `supabase migration list` (local=remote=0002).
+- A throwaway Supabase test account — created pre-confirmed via the Admin API (service-role key fetched transiently through `supabase projects api-keys`, never written to disk, session-scoped only) rather than the signup form, since Supabase's default email sender rate-limits fast repeated signups — drove a full Playwright pass against a spare-port (`3399`) `pnpm dev` instance: two pets, a recurring overdue reminder, a one-off upcoming reminder, a standalone past care event, marking both reminder types done (verified `next_due_on` math and deactivation via direct SQL, not just the UI), cancelling a reminder, dashboard interleaving + pill counts across two pets, and the archive-leak fix (an archived pet's reminder disappears from the cross-pet dashboard but still shows on her own profile page). All 17 assertions passed on the first clean run. Test account and its data deleted afterward (cascades via `auth.users` FK); the throwaway `scripts/qa-reminders.mjs` and the temporary `playwright` devDependency were both removed after the run — `git status` on `package.json`/`pnpm-lock.yaml` is clean.
+
+**Not done yet:** Zee's own manual browser walkthrough, and committing the change.
+
+---
+
+## Next up
+
+1. Zee walks Phase E1 by hand in her own browser (create/cancel/mark-done a reminder, log a standalone event, check dashboard + pet-profile Reminders/Timeline against the mockup's spacing/tone).
+2. Commit Phase E1.
+3. Phase E2 — the email-digest half (Resend account signup, Supabase Edge Function on a cron schedule) — not started or planned in detail yet.

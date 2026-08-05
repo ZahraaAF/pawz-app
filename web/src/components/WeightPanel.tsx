@@ -14,7 +14,7 @@ export default function WeightPanel({
   const boundAddWeightEntry = addWeightEntry.bind(null, pet.id);
 
   return (
-    <div className="card weight-chart-wrap">
+    <div className="weight-chart-wrap">
       <div className="weight-chart-head">
         <div>
           <div
