@@ -177,6 +177,7 @@ Explicitly **out of MVP**, for stated reasons — revisit post-launch:
 - **Family/household sharing** — real value (multiple caregivers), real complexity (permissions/invites). Candidate for v1.1, not v1.
 - **QR code shareable pet profile** — cheap to build, doubles as a growth/acquisition channel (scan on a collar → discover the app). Worth an earlier fast-follow, not core MVP.
 - **Other species (rabbits, birds, reptiles, small mammals)** — clean post-MVP expansion once dogs/cats are solid.
+- **Multiple reminder touchpoints per due date** (e.g. an email 3 days before *and* 1 day before, not just one fixed offset) — natural extension of the Phase E2 digest, and a plausible premium-tier lever (free = one fixed reminder, premium = pick your own schedule). Needs tracking which specific offsets have already fired per due date (not just one dedup value), so it's a real if modest schema change, not a copy-paste of the existing logic.
 
 ## Naming — status
 

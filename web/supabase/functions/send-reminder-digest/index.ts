@@ -28,13 +28,97 @@ function addDaysToIso(dateIso: string, days: number): string {
   return new Date(parseDateUtc(dateIso) + days * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
+function formatDateHuman(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+// Duplicated from CARE_EVENT_TYPES in web/src/lib/reminders/types.ts - same
+// keep-in-sync tradeoff as the check constraint in 0002_reminders.sql.
+const TYPE_LABELS: Record<string, string> = {
+  vaccination: "Vaccination",
+  medication: "Medication",
+  deworming: "Deworming",
+  flea_tick: "Flea & tick",
+  grooming: "Grooming",
+  vet_visit: "Vet visit",
+  other: "Reminder",
+};
+
 type ReminderRow = {
   id: string;
+  type: string;
   label: string;
+  notes: string | null;
   next_due_on: string;
   last_notified_for_due_on: string | null;
   pets: { name: string; owner_id: string };
 };
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Colors duplicated from web/src/app/globals.css's :root (light) palette -
+// email clients strip <style>/CSS custom properties unreliably, so this has
+// to be plain hex inlined per element, not a shared stylesheet.
+const COLOR = {
+  teal: "#1c6b6b",
+  marigold: "#b8721f",
+  paper: "#efeadf",
+  paperCard: "#f8f6ee",
+  ink: "#1c231e",
+  inkSoft: "#4c5650",
+  inkFaint: "#7c847d",
+  line: "#dcd5c3",
+};
+
+// Table-based layout, all styles inlined - the only markup shape that
+// renders consistently across email clients (Outlook in particular ignores
+// most modern CSS, including flexbox/grid and external/head-level styles).
+function buildHtml(reminders: ReminderRow[]): string {
+  const rows = reminders
+    .map((r) => {
+      const typeLabel = escapeHtml(TYPE_LABELS[r.type] ?? "Reminder");
+      const petName = escapeHtml(r.pets.name);
+      const label = escapeHtml(r.label);
+      const due = formatDateHuman(r.next_due_on);
+      const notesRow = r.notes
+        ? `<tr><td style="padding:3px 0;color:${COLOR.inkFaint};font-size:13px;width:96px;vertical-align:top;">Notes</td><td style="padding:3px 0;color:${COLOR.inkSoft};font-size:13px;">${escapeHtml(r.notes)}</td></tr>`
+        : "";
+      return `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:-apple-system,'Segoe UI',Roboto,sans-serif;border-top:1px solid ${COLOR.line};padding-top:14px;margin-top:14px;">
+          <tr><td style="padding:3px 0;color:${COLOR.inkFaint};font-size:13px;width:96px;">Pet Name</td><td style="padding:3px 0;color:${COLOR.ink};font-size:14px;font-weight:600;">${petName}</td></tr>
+          <tr><td style="padding:3px 0;color:${COLOR.inkFaint};font-size:13px;">${typeLabel}</td><td style="padding:3px 0;color:${COLOR.ink};font-size:14px;">${label}</td></tr>
+          <tr><td style="padding:3px 0;color:${COLOR.inkFaint};font-size:13px;">Due</td><td style="padding:3px 0;color:${COLOR.marigold};font-size:14px;font-weight:600;">${due}</td></tr>
+          ${notesRow}
+        </table>`;
+    })
+    .join("");
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLOR.paper};padding:24px 0;">
+      <tr><td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:${COLOR.paperCard};border:1px solid ${COLOR.line};border-radius:16px;">
+          <tr><td style="padding:28px 32px 4px;">
+            <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;color:${COLOR.teal};">Pawz</div>
+            <div style="font-family:-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;color:${COLOR.inkFaint};margin-top:4px;">Coming up in the next ${N_DAYS} days</div>
+          </td></tr>
+          <tr><td style="padding:4px 32px 24px;">${rows}</td></tr>
+          <tr><td style="padding:0 32px 24px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;font-size:12px;color:${COLOR.inkFaint};">— Pawz</td></tr>
+        </table>
+      </td></tr>
+    </table>`;
+}
 
 Deno.serve(async (req) => {
   const cronSecret = Deno.env.get("CRON_INVOKE_SECRET");
@@ -58,7 +142,7 @@ Deno.serve(async (req) => {
   const { data, error } = await supabase
     .from("reminder_schedules")
     .select(
-      "id, label, next_due_on, last_notified_for_due_on, pets!inner(name, owner_id, archived)",
+      "id, type, label, notes, next_due_on, last_notified_for_due_on, pets!inner(name, owner_id, archived)",
     )
     .eq("active", true)
     .eq("pets.archived", false)
@@ -97,10 +181,20 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const lines = reminders
-      .map((r) => `${r.pets.name} — ${r.label} — due ${r.next_due_on}`)
-      .join("\n");
-    const text = `Coming up in the next ${N_DAYS} days:\n\n${lines}\n\n— Pawz`;
+    const blocks = reminders.map((r) => {
+      const typeLabel = TYPE_LABELS[r.type] ?? "Reminder";
+      const block = [
+        `Pet Name: ${r.pets.name}`,
+        `${typeLabel}: ${r.label}`,
+        `Due: ${formatDateHuman(r.next_due_on)}`,
+      ];
+      if (r.notes) block.push(`Notes: ${r.notes}`);
+      return block.join("\n");
+    });
+    // Plain-text fallback for clients that don't render HTML - Resend sends
+    // both parts in one request (multipart), same email either way.
+    const text = `Coming up in the next ${N_DAYS} days:\n\n${blocks.join("\n\n")}\n\n— Pawz`;
+    const html = buildHtml(reminders);
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -113,6 +207,7 @@ Deno.serve(async (req) => {
         to: [email],
         subject: "Upcoming pet care reminders",
         text,
+        html,
       }),
     });
 
