@@ -2,7 +2,7 @@
 
 Living handoff doc: what's been built, why, and what's next. Updated at the end of each phase. For exact technical steps of the phase we're currently mid-way through, see the plan at `~/.claude/plans/hi-claude-inspect-the-wise-taco.md` — this file is the narrative companion, not a replacement.
 
-Last updated: end of Phase E2. Phases D and E1 are committed and pushed. Phase E2 (reminder email digest) is built, deployed, and verified end-to-end against the live project, but **not committed yet** (see "Phase E2" below).
+Last updated: end of Phase E2. Phases D, E1, and E2 (reminder email digest) are all committed. Phase E2 needed one follow-up fix after the first natural overnight cron run surfaced a real bug — see "Phase E2" below for the full story.
 
 ---
 
@@ -146,14 +146,16 @@ Fixed by: (1) `auth/callback/route.ts` now signs out before redirecting to `/log
 
 **Gotcha hit + fixed (test design, not app code):** the first attempt at proving the cron fires completely unattended left one test reminder deliberately un-invoked — but then the manual-checklist `curl` command handed to Zee for her own testing swept it in anyway, since digests are grouped per-account, not per-reminder, so *any* invocation on that account processes everything currently due. Confirmed via `cron.job_run_details` (empty at the time) that this was not a real unattended fire. Fix: don't rely on a fragile "leave one alone" reminder at all — `cron.job_run_details` logs every attempt pg_cron itself makes, with or without anything to send, so checking that table directly is sufficient proof on its own.
 
-**Not done yet:** confirming a real overnight `cron.schedule` run via `cron.job_run_details` (still empty as of this session — the schedule hasn't had its first natural tick yet); committing this phase.
+**Follow-up bug found and fixed (2026-08-06):** the first-ever natural cron tick fired on schedule at 12:00 UTC and `cron.job_run_details` logged it as `succeeded` — but that only reflects `net.http_post`'s synchronous enqueue step, not the actual async HTTP call. Cross-checking `net._http_response` directly showed `timed_out: true`, with pg_net's default 5000ms timeout blown by a cold Edge Function boot (`npm:@supabase/supabase-js` resolving fresh) — even though that run had nothing to send. Since this function only runs once a day, it will realistically be cold on every production invocation, so this would have failed silently (looking "succeeded" in the one table anyone would normally check) every single day. Fixed via `0004_reminder_digest_timeout.sql`, using `cron.alter_job` to raise `timeout_milliseconds` to 30000. Verified live: manually re-invoked the same `net.http_post` call and got a real `200` (`eligibleReminders: 0, sent: 0, failed: 0`) in under 6s. Committed as `1211468`.
 
-**Also noticed, unrelated to this phase:** `SPEC.md` has an uncommitted "9. Nice-to-Have Features" section (a PWA-manifest idea) sitting in the working tree from some earlier session — left alone/out of the Phase E2 commit since it's unrelated; worth Zee's attention whenever convenient.
+**Lesson for future cron/webhook work in this project:** don't trust `cron.job_run_details.status` alone to mean "the webhook succeeded" — for `net.http_post`-based jobs it only proves the request was queued. Check `net._http_response` (`status_code`, `timed_out`, `error_msg`) for the real outcome.
+
+**Not done yet:** watching tomorrow's natural 12:00 UTC tick with the new timeout in place, just to see a fully unattended real-world run succeed end-to-end (optional at this point — the fix is verified, this would just be extra confidence). Deciding what to do with the still-uncommitted `SPEC.md` "9. Nice-to-Have Features" (PWA-manifest) section — left alone again, unrelated to this fix; worth Zee's attention whenever convenient.
 
 ---
 
 ## Next up
 
-1. Let the Phase E2 cron job run unattended overnight; next morning, confirm an email arrived with no manual trigger and `last_notified_for_due_on` moved on its own.
-2. Commit Phase E2 (and decide separately what to do with the stray uncommitted `SPEC.md` PWA section).
+1. Phase E2 is done: code committed and pushed, and the cold-start timeout bug found in the first natural cron run is fixed, deployed, and verified.
+2. Decide what to do with the stray uncommitted `SPEC.md` PWA section (unrelated to E2, still sitting in the working tree).
 3. Whatever's next per SPEC's build order after reminders: symptom log/vet report, then documents, then Care Card.
