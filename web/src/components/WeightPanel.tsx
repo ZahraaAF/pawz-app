@@ -1,6 +1,6 @@
 import { formatWeight } from "@/lib/pets/format";
 import { addWeightEntry } from "@/lib/pets/actions";
-import WeightForm from "@/components/WeightForm";
+import WeightModal from "@/components/WeightModal";
 import WeightHistoryList from "@/components/WeightHistoryList";
 import type { PetWithCurrentWeight, WeightEntry } from "@/lib/pets/types";
 
@@ -31,11 +31,8 @@ export default function WeightPanel({
             {pet.current_weight ? formatWeight(pet.current_weight) : "No entries yet"}
           </div>
         </div>
-        <span className="pill pill-unknown">
-          {history.length} {history.length === 1 ? "log" : "logs"}
-        </span>
+        <WeightModal action={boundAddWeightEntry} />
       </div>
-      <WeightForm action={boundAddWeightEntry} />
       <WeightHistoryList history={history} />
     </div>
   );

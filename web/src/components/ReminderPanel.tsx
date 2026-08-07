@@ -14,7 +14,10 @@ export default function ReminderPanel({
 
   return (
     <div className="weight-chart-wrap">
-      <div className="weight-chart-head">
+      <div
+        className="weight-chart-head"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      >
         <div
           style={{
             fontSize: 11,
@@ -25,17 +28,17 @@ export default function ReminderPanel({
         >
           Reminders
         </div>
+        <ReminderModal action={boundCreateReminder} />
       </div>
       {reminders.length === 0 ? (
         <div className="empty-state">No reminders set for {pet.name} yet.</div>
       ) : (
-        <div className="reminder-list" style={{ marginBottom: 14 }}>
+        <div className="reminder-list">
           {reminders.map((r) => (
             <ReminderRow key={r.id} schedule={r} pet={pet} />
           ))}
         </div>
       )}
-      <ReminderModal action={boundCreateReminder} />
     </div>
   );
 }
