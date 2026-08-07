@@ -168,9 +168,6 @@ svg.spark { width: 100%; height: 70px; display: block; overflow: visible; }
 .action-body { display: none; padding: 4px 16px 18px; border-top: 1px solid var(--line); margin-top: 2px; }
 .action-card.open .action-body { display: block; }
 
-.add-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; padding-top: 14px; }
-.add-row input, .add-row select { font-family: inherit; font-size: 13px; padding: 9px 11px; border-radius: var(--radius-s); border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink); }
-.add-row input[type="text"] { flex: 1; min-width: 160px; }
 .btn { font-size: 13px; font-weight: 600; padding: 9px 15px; border-radius: var(--radius-s); border: 1px solid var(--teal); background: var(--teal); color: #f5f3e8; cursor: pointer; }
 .btn:hover { background: var(--teal-strong); border-color: var(--teal-strong); }
 .btn.secondary { background: var(--paper-raised); color: var(--ink); border-color: var(--line); }
@@ -183,6 +180,7 @@ svg.spark { width: 100%; height: 70px; display: block; overflow: visible; }
 .sev-mild { background: var(--sage); }
 .sev-moderate { background: var(--marigold); }
 .sev-severe { background: var(--brick); }
+.symptom-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius-s); flex-shrink: 0; }
 
 .doc-table-wrap { overflow-x: auto; padding-top: 14px; }
 table.doc-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 480px; }
@@ -285,3 +283,8 @@ dialog.modal-dialog .pet-form-card { margin: 0; }
   .topbar, .view-toggle, .chip-row, .action-header, .page-head .lede, .placeholder-note { display: none !important; }
   body { background: #fff; }
 }
+
+/* Scopes printing to just the Vet Report card - see PrintReportButton.tsx.
+   Other Actions accordion cards (e.g. Symptoms) may also be open at print
+   time; without this they'd print too. */
+body.printing-vet-report .action-card:not(#vet-report-card) { display: none !important; }

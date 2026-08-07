@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth/dal";
 import { getPetById, getPetsForUser, getWeightHistory } from "@/lib/pets/queries";
 import { formatWeight } from "@/lib/pets/format";
 import { getCareEventsForPet, getRemindersForPet } from "@/lib/reminders/queries";
+import { getSymptomsForPet } from "@/lib/symptoms/queries";
+import { getVetReportData } from "@/lib/report/queries";
+import { REPORT_RANGE_PRESETS, resolveReportRange, type ReportRangePreset } from "@/lib/report/format";
 import ProfileHeader from "@/components/ProfileHeader";
 import PetSwitcher from "@/components/PetSwitcher";
 import ViewToggle from "@/components/ViewToggle";
@@ -11,23 +14,36 @@ import FieldGrid from "@/components/FieldGrid";
 import WeightPanel from "@/components/WeightPanel";
 import ReminderPanel from "@/components/ReminderPanel";
 import Timeline from "@/components/Timeline";
-import ActionsStub from "@/components/ActionsStub";
+import SymptomPanel from "@/components/SymptomPanel";
+import VetReportPanel from "@/components/VetReportPanel";
+
+function resolveRangePreset(raw: string | undefined): ReportRangePreset {
+  const match = REPORT_RANGE_PRESETS.find((p) => p.value === raw);
+  return match?.value ?? "30d";
+}
 
 export default async function PetProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ petId: string }>;
+  searchParams: Promise<{ range?: string }>;
 }) {
   await requireUser();
   const { petId } = await params;
+  const { range } = await searchParams;
+  const rangePreset = resolveRangePreset(range);
 
   const [pet, allPets] = await Promise.all([getPetById(petId), getPetsForUser()]);
   if (!pet) notFound();
 
-  const [weightHistory, reminders, careEvents] = await Promise.all([
+  const { from, to } = resolveReportRange(rangePreset);
+  const [weightHistory, reminders, careEvents, symptoms, reportData] = await Promise.all([
     getWeightHistory(petId),
     getRemindersForPet(petId),
     getCareEventsForPet(petId),
+    getSymptomsForPet(petId),
+    getVetReportData(petId, from, to),
   ]);
 
   return (
@@ -59,7 +75,19 @@ export default async function PetProfilePage({
           </>
         }
         timeline={<Timeline pet={pet} events={careEvents} />}
-        actions={<ActionsStub />}
+        actions={
+          <>
+            <CollapsibleSection
+              title="Symptoms"
+              subtitle={symptoms.length === 0 ? "None logged" : `${symptoms.length} entries`}
+            >
+              <SymptomPanel pet={pet} symptoms={symptoms} />
+            </CollapsibleSection>
+            <CollapsibleSection id="vet-report-card" title="Vet report" subtitle="Generate a summary report before vet visits">
+              <VetReportPanel pet={pet} range={rangePreset} data={reportData} />
+            </CollapsibleSection>
+          </>
+        }
       />
     </>
   );
