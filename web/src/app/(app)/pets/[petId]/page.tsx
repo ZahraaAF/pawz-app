@@ -6,6 +6,7 @@ import { getCareEventsForPet, getRemindersForPet } from "@/lib/reminders/queries
 import { getSymptomsForPet } from "@/lib/symptoms/queries";
 import { getVetReportData } from "@/lib/report/queries";
 import { REPORT_RANGE_PRESETS, resolveReportRange, type ReportRangePreset } from "@/lib/report/format";
+import { getDocumentsForPet } from "@/lib/documents/queries";
 import ProfileHeader from "@/components/ProfileHeader";
 import PetSwitcher from "@/components/PetSwitcher";
 import ViewToggle from "@/components/ViewToggle";
@@ -16,6 +17,7 @@ import ReminderPanel from "@/components/ReminderPanel";
 import Timeline from "@/components/Timeline";
 import SymptomPanel from "@/components/SymptomPanel";
 import VetReportPanel from "@/components/VetReportPanel";
+import DocumentsPanel from "@/components/DocumentsPanel";
 
 function resolveRangePreset(raw: string | undefined): ReportRangePreset {
   const match = REPORT_RANGE_PRESETS.find((p) => p.value === raw);
@@ -38,12 +40,13 @@ export default async function PetProfilePage({
   if (!pet) notFound();
 
   const { from, to } = resolveReportRange(rangePreset);
-  const [weightHistory, reminders, careEvents, symptoms, reportData] = await Promise.all([
+  const [weightHistory, reminders, careEvents, symptoms, reportData, documents] = await Promise.all([
     getWeightHistory(petId),
     getRemindersForPet(petId),
     getCareEventsForPet(petId),
     getSymptomsForPet(petId),
     getVetReportData(petId, from, to),
+    getDocumentsForPet(petId),
   ]);
 
   return (
@@ -85,6 +88,12 @@ export default async function PetProfilePage({
             </CollapsibleSection>
             <CollapsibleSection id="vet-report-card" title="Vet report" subtitle="Generate a summary report before vet visits">
               <VetReportPanel pet={pet} range={rangePreset} data={reportData} />
+            </CollapsibleSection>
+            <CollapsibleSection
+              title="Documents"
+              subtitle={documents.length === 0 ? "None uploaded" : `${documents.length} file${documents.length === 1 ? "" : "s"}`}
+            >
+              <DocumentsPanel pet={pet} documents={documents} careEvents={careEvents} symptoms={symptoms} />
             </CollapsibleSection>
           </>
         }

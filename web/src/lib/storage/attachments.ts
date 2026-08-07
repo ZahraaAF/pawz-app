@@ -18,6 +18,12 @@ export const ALLOWED_PHOTO_MIME_TYPES = [
   "image/heif",
 ];
 
+// Documents additionally accept PDF - Symptoms keeps using
+// ALLOWED_PHOTO_MIME_TYPES as-is (images only) for its own client
+// `accept` attribute, so this is a separate list rather than widening
+// the one above.
+export const ALLOWED_DOCUMENT_MIME_TYPES = [...ALLOWED_PHOTO_MIME_TYPES, "application/pdf"];
+
 function extFromFilename(filename: string): string {
   const dot = filename.lastIndexOf(".");
   if (dot === -1 || dot === filename.length - 1) return "bin";
@@ -104,4 +110,24 @@ export async function getSignedAttachmentUrls(
     }
   }
   return urls;
+}
+
+// Unlike getSignedAttachmentUrls (batched, one shared `options` object
+// across all paths - can't vary the download filename per path), a
+// forced download needs the *original* filename in
+// Content-Disposition, not the UUID-based storage path. One call per
+// document; fine at small per-pet document counts.
+export async function getSignedAttachmentDownloadUrl(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  path: string,
+  downloadFilename: string,
+  expiresIn = 3600,
+): Promise<string | null> {
+  const storage = await getAuthedStorage(supabase);
+  const { data, error } = await storage
+    .from(PET_ATTACHMENTS_BUCKET)
+    .createSignedUrl(path, expiresIn, { download: downloadFilename });
+
+  if (error) return null;
+  return data?.signedUrl ?? null;
 }

@@ -189,8 +189,13 @@ table.doc-table td { padding: 12px 15px; border-top: 1px solid var(--line-soft);
 table.doc-table tr:first-child td { border-top: none; }
 .doc-name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .doc-icon { width: 26px; height: 26px; border-radius: 6px; background: var(--line-soft); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--ink-soft); flex-shrink: 0; }
-.upload-drop { border: 1.5px dashed var(--line); border-radius: var(--radius-m); padding: 22px; text-align: center; color: var(--ink-faint); font-size: 12.5px; margin: 14px 0 18px; background: var(--paper-raised); }
+.upload-drop { border: 1.5px dashed var(--line); border-radius: var(--radius-m); padding: 22px; text-align: center; color: var(--ink-faint); font-size: 12.5px; margin: 14px 0 18px; background: var(--paper-raised); cursor: pointer; }
 .upload-drop b { color: var(--teal-strong); }
+.upload-drop.drag-active { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 8%, var(--paper-raised)); }
+
+/* The mockup's doc-table only ever showed one <a>View</a> per row; real
+   rows need View/Download/Delete side by side. */
+.doc-table td.doc-actions { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
 
 .report-controls { display: flex; align-items: center; gap: 10px; margin: 14px 0 18px; flex-wrap: wrap; }
 .report-controls label { font-size: 12.5px; color: var(--ink-soft); }
